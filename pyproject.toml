@@ -14,14 +14,14 @@ classifiers = [
     "Programming Language :: Python",
 ]
 dependencies = [
-    "jax[cuda12]==0.4.35",
-    "flax==0.10.0",
-    "pytest==8.3.3",
-    "ruff==0.7.1",
-    "pre-commit==4.0.1",
-    "matplotlib==3.9.2",
-    "mujoco==3.2.4",
-    "mujoco-mjx==3.2.4",
+    "jax[cuda12]",
+    "flax",
+    "pytest",
+    "ruff",
+    "pre-commit",
+    "matplotlib",
+    "mujoco",
+    "mujoco-mjx",
     "evosax==0.1.6",
 ]
 
