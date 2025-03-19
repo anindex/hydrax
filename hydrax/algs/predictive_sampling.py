@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Any
 
 import jax
 import jax.numpy as jnp
@@ -80,8 +80,8 @@ class PredictiveSampling(SamplingBasedController):
         mean = rollouts.controls[best_idx]
         return params.replace(mean=mean)
 
-    def get_action(self, params: PSParams, t: float) -> jax.Array:
+    def get_action(self, params: PSParams, t: float) -> Tuple[jax.Array, Any]:
         """Get the control action for the current time step, zero order hold."""
         idx_float = t / self.task.dt  # zero order hold
         idx = jnp.floor(idx_float).astype(jnp.int32)
-        return params.mean[idx]
+        return params.mean[idx], params

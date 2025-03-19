@@ -125,8 +125,8 @@ class Evosax(SamplingBasedController):
 
         return params.replace(controls=best_controls, opt_state=opt_state)
 
-    def get_action(self, params: EvosaxParams, t: float) -> jax.Array:
+    def get_action(self, params: EvosaxParams, t: float) -> Tuple[jax.Array, Any]:
         """Get the control action for the current time step, zero order hold."""
         idx_float = t / self.task.dt  # zero order hold
         idx = jnp.floor(idx_float).astype(jnp.int32)
-        return params.controls[idx]
+        return params.controls[idx], params

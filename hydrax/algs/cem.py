@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Any
 
 import jax
 import jax.numpy as jnp
@@ -96,8 +96,8 @@ class CEM(SamplingBasedController):
 
         return params.replace(mean=mean, cov=cov)
 
-    def get_action(self, params: CEMParams, t: float) -> jax.Array:
+    def get_action(self, params: CEMParams, t: float) -> Tuple[jax.Array, Any]:
         """Get the control action for the current time step, zero order hold."""
         idx_float = t / self.task.dt  # zero order hold
         idx = jnp.floor(idx_float).astype(jnp.int32)
-        return params.mean[idx]
+        return params.mean[idx], params

@@ -53,7 +53,7 @@ def test_open_loop() -> None:
         ax[2].set_xlabel("Time (s)")
 
         time_samples = jnp.linspace(0, times[-1], 100)
-        controls = jax.vmap(opt.get_action, in_axes=(None, 0))(
+        controls, _ = jax.vmap(opt.get_action, in_axes=(None, 0), out_axes=(0, None))(
             params, time_samples
         )
         ax[2].plot(time_samples, controls, color="gray", alpha=0.5)
