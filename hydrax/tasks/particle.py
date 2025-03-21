@@ -26,12 +26,28 @@ class Particle(Task):
             sim_steps_per_control_step=sim_steps_per_control_step,
             trace_sites=["pointmass"],
         )
-
+        self.wall_pos = jnp.array([
+            mj_model.geom("wall_ix").pos[:2],
+            mj_model.geom("wall_iy").pos[:2],
+            mj_model.geom("wall_neg_iy").pos[:2],
+        ])
+        self.wall_size = jnp.array([
+            mj_model.geom("wall_ix").size[:2],
+            mj_model.geom("wall_iy").size[:2],
+            mj_model.geom("wall_neg_iy").size[:2],
+        ])
+        
         self.pointmass_id = mj_model.site("pointmass").id
 
     def running_cost(self, state: mjx.Data, control: jax.Array) -> jax.Array:
         """The running cost ℓ(xₜ, uₜ) encourages target tracking."""
-        state_cost = self.terminal_cost(state)
+        # wall SDF cost
+        wall_dist = jnp.abs(state.site_xpos[self.pointmass_id][None, :2] - self.wall_pos) - self.wall_size
+        outside_dist = jnp.maximum(wall_dist, 1e-12)
+        inside_dist = jnp.minimum(jnp.max(wall_dist, axis=-1), 0.0)
+        dist = (jnp.linalg.norm(outside_dist, axis=-1) + inside_dist).min(axis=-1)
+        state_cost = 5. * jnp.exp(-50. * dist)
+        state_cost += self.terminal_cost(state)
         control_cost = jnp.sum(jnp.square(control))
         return state_cost + 0.1 * control_cost
 
