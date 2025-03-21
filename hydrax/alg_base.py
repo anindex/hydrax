@@ -229,7 +229,7 @@ class SamplingBasedController(ABC):
         pass
 
     @abstractmethod
-    def get_action(self, params: Any, t: float) -> Tuple[jax.Array, Any]:
+    def get_action(self, params: Any, t: float) -> jax.Array:
         """Get the control action at a given point along the trajectory.
 
         Args:

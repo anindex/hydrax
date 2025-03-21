@@ -155,7 +155,7 @@ def run_controller(
         # Send the action to the simulator.
         # TODO: send the full parameters rather than assuming zero-order
         # hold and a sufficiently high control rate
-        a, policy_params = get_action(policy_params, 0.0)
+        a = get_action(policy_params, 0.0)
         shm_data.ctrl[:] = np.array(
             a, dtype=np.float32
         )

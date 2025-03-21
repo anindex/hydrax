@@ -152,7 +152,7 @@ class MyControlAlgorithm(SamplingBasedController):
         ...
         return new_params
 
-    def get_action(self, params: Any, t: float) -> Tuple[jax.Array, Any]:
+    def get_action(self, params: Any, t: float) -> jax.Array:
         # Return the control action applied t seconds into the trajectory.
         ...
         return u

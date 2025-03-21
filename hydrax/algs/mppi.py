@@ -91,8 +91,8 @@ class MPPI(SamplingBasedController):
         mean = jnp.sum(weights[:, None, None] * rollouts.controls, axis=0)
         return params.replace(mean=mean)
 
-    def get_action(self, params: MPPIParams, t: float) -> Tuple[jax.Array, Any]:
+    def get_action(self, params: MPPIParams, t: float) -> jax.Array:
         """Get the control action for the current time step, zero order hold."""
         idx_float = t / self.task.dt  # zero order hold
         idx = jnp.floor(idx_float).astype(jnp.int32)
-        return params.mean[idx], params
+        return params.mean[idx]

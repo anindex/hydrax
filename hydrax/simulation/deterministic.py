@@ -140,7 +140,7 @@ def run_interactive(
             # Step the simulation
             for i in range(sim_steps_per_replan):
                 t = i * mj_model.opt.timestep
-                u, policy_params = controller.get_action(policy_params, t)
+                u = controller.get_action(policy_params, t)
                 mj_data.ctrl[:] = np.array(u)
                 mujoco.mj_step(mj_model, mj_data)
                 viewer.sync()
