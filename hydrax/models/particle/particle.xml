@@ -21,6 +21,10 @@
     <geom name="wall_neg_x" type="plane" pos=".3 0 .02" zaxis="-1 0 0" size=".02 .3 .02" />
     <geom name="wall_neg_y" type="plane" pos="0 .3 .02" zaxis="0 -1 0" size=".3 .02 .02" />
 
+    <geom name="wall_ix" type="plane" pos=".1 0 .02" zaxis="1 0 0" size=".02 .1 .02" />
+    <geom name="wall_iy" type="plane" pos="0 -.1 .02" zaxis="0 1 0" size=".1 .02 .02" />
+    <geom name="wall_neg_iy" type="plane" pos="0 .1 .02" zaxis="0 -1 0" size=".1 .02 .02" />
+
     <body name="pointmass" pos="0 0 .01">
       <camera name="cam0" pos="0 -0.3 0.3" xyaxes="1 0 0 0 0.7 0.7" />
       <joint name="root_x" type="slide" pos="0 0 0" axis="1 0 0" />
