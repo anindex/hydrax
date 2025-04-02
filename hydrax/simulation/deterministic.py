@@ -28,6 +28,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     trace_color: Sequence = [1.0, 1.0, 1.0, 0.1],
     reference: np.ndarray = None,
     reference_fps: float = 30.0,
+    delay_ctrl_start: int = 0,
 ) -> None:
     """Run an interactive simulation with the MPC controller.
 
@@ -53,6 +54,8 @@ def run_interactive(  # noqa: PLR0912, PLR0915
         trace_color: The RGBA color of the trace lines.
         reference: The reference trajectory (qs) to visualize.
         reference_fps: The frame rate of the reference trajectory.
+        delay_ctrl_start: The number of simulation steps to delay the controller
+                          start by.
     """
     # Report the planning horizon in seconds for debugging
     print(
@@ -122,7 +125,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
                     rgba=np.array(trace_color),
                 )
                 viewer.user_scn.ngeom += 1
-
+        
         # Add geometry for the ghost reference
         if reference is not None:
             mujoco.mjv_addGeoms(
@@ -182,7 +185,11 @@ def run_interactive(  # noqa: PLR0912, PLR0915
             for i in range(sim_steps_per_replan):
                 t = i * mj_model.opt.timestep
                 u = controller.get_action(policy_params, t)
-                mj_data.ctrl[:] = np.array(u)
+                if delay_ctrl_start > 0:
+                    delay_ctrl_start -= 1
+                    # print(f"Delaying controller start for {delay_ctrl_start} steps")
+                else:
+                    mj_data.ctrl[:] = np.array(u)
                 mujoco.mj_step(mj_model, mj_data)
                 viewer.sync()
 

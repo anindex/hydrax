@@ -173,6 +173,7 @@ def run_simulator(
     shm_data: SharedMemoryMujocoData,
     ready: Event,
     finished: Event,
+    delay_ctrl_start: bool=False,
 ) -> None:
     """Run a simulation, communicating with the controller over shared memory.
 
@@ -182,9 +183,11 @@ def run_simulator(
         shm_data: Shared memory object for state and control action data.
         ready: Shared flag for starting the simulation.
         finished: Shared flag for stopping the simulation.
+        delay_ctrl_start: Whether to delay the controller start.
     """
     # Wait for the controller to be ready
-    ready.wait()
+    if not delay_ctrl_start:
+        ready.wait()
 
     with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
         while viewer.is_running():
@@ -201,7 +204,8 @@ def run_simulator(
             # Read the lastest control values from shared memory
             # TODO: actually query the spline rather than assuming zero-order
             # hold and a sufficiently high control rate
-            mj_data.ctrl[:] = shm_data.ctrl[:]
+            if ready.is_set():
+                mj_data.ctrl[:] = shm_data.ctrl[:]
 
             # Step the simulation
             mujoco.mj_step(mj_model, mj_data)
@@ -220,6 +224,7 @@ def run_interactive(
     controller: SamplingBasedController,
     mj_model: mujoco.MjModel,
     mj_data: mujoco.MjData,
+    delay_ctrl_start: bool=False,
 ) -> None:
     """Run an asynchronous interactive simulation.
 
@@ -231,6 +236,7 @@ def run_interactive(
         controller: The controller to use for planning.
         mj_model: Mujoco model for the simulation.
         mj_data: Mujoco data specifying the initial state.
+        delay_ctrl_start: Whether to delay the controller start.
     """
     ctx = mp.get_context("spawn")  # Need to use spawn for jax compatibility
 
@@ -242,7 +248,7 @@ def run_interactive(
     # Set up the simulator and controller processes
     sim = ctx.Process(
         target=run_simulator,
-        args=(mj_model, mj_data, shm_data, ready, finished),
+        args=(mj_model, mj_data, shm_data, ready, finished, delay_ctrl_start),
     )
     control = ctx.Process(
         target=run_controller, args=(controller, shm_data, ready, finished)
