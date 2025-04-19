@@ -87,7 +87,7 @@ class MPPI(SamplingBasedController):
         """Update the mean with an exponentially weighted average."""
         costs = jnp.sum(rollouts.costs, axis=1)  # sum over time steps
         # N.B. jax.nn.softmax takes care of details like baseline subtraction.
-        weights = jax.nn.softmax(-costs / self.temperature, axis=0)
+        weights = jnp.nan_to_num(jax.nn.softmax(-costs / self.temperature, axis=0))
         mean = jnp.sum(weights[:, None, None] * rollouts.controls, axis=0)
         return params.replace(mean=mean)
 

@@ -224,8 +224,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
                 "qpos": np.array(mjx_data.qpos).tolist(),
                 "qvel": np.array(mjx_data.qvel).tolist(),
                 "control": np.array(u).tolist(),
-                "running_cost": float(controller.task.running_cost(mjx_data, u)),
-                "terminal_cost": float(controller.task.terminal_cost(mjx_data)),
+                "running_cost": jnp.sum(rollouts.costs, axis=1).tolist(),
             })
 
 
@@ -244,7 +243,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     # Save logs to a CSV file if specified
     if log_file:
         with open(log_file, "w", newline="") as csvfile:
-            fieldnames = ["step", "sim_time", "plan_time", "qpos", "qvel", "control", "running_cost", "terminal_cost"]
+            fieldnames = ["step", "sim_time", "plan_time", "qpos", "qvel", "control", "running_cost"]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             for log in logs:
