@@ -1,5 +1,6 @@
 import time
 from typing import Sequence
+import csv
 
 import jax
 import jax.numpy as jnp
@@ -29,6 +30,8 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     reference: np.ndarray = None,
     reference_fps: float = 30.0,
     delay_ctrl_start: int = 0,
+    max_step: float = 1e4,
+    log_file: str = None,
 ) -> None:
     """Run an interactive simulation with the MPC controller.
 
@@ -56,7 +59,11 @@ def run_interactive(  # noqa: PLR0912, PLR0915
         reference_fps: The frame rate of the reference trajectory.
         delay_ctrl_start: The number of simulation steps to delay the controller
                           start by.
+        log_file: The directory to save the logs to. If None, no logs are saved.
+        max_step: The maximum number of simulation steps to run before timeout.
     """
+    logs = []
+
     # Report the planning horizon in seconds for debugging
     print(
         f"Planning with {controller.task.planning_horizon} steps "
@@ -132,7 +139,9 @@ def run_interactive(  # noqa: PLR0912, PLR0915
                 mj_model, ref_data, vopt, pert, catmask, viewer.user_scn
             )
 
+        step = 0
         while viewer.is_running():
+            step += 1
             start_time = time.time()
 
             # Set the start state for the controller
@@ -185,6 +194,8 @@ def run_interactive(  # noqa: PLR0912, PLR0915
             for i in range(sim_steps_per_replan):
                 t = i * mj_model.opt.timestep
                 u = controller.get_action(policy_params, t)
+                # if any u is nan, stop 
+
                 if delay_ctrl_start > 0:
                     delay_ctrl_start -= 1
                     # print(f"Delaying controller start for {delay_ctrl_start} steps")
@@ -192,7 +203,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
                     mj_data.ctrl[:] = np.array(u)
                 mujoco.mj_step(mj_model, mj_data)
                 viewer.sync()
-
+                
             # Try to run in roughly realtime
             elapsed = time.time() - start_time
             if elapsed < step_dt:
@@ -205,5 +216,37 @@ def run_interactive(  # noqa: PLR0912, PLR0915
                 end="\r",
             )
 
+            # Log data for the current step
+            logs.append({
+                "step": step,
+                "sim_time": float(mjx_data.time),
+                "plan_time": plan_time,
+                "qpos": np.array(mjx_data.qpos).tolist(),
+                "qvel": np.array(mjx_data.qvel).tolist(),
+                "control": np.array(u).tolist(),
+                "running_cost": float(controller.task.running_cost(mjx_data, u)),
+                "terminal_cost": float(controller.task.terminal_cost(mjx_data)),
+            })
+
+
+            if np.isnan(u).any():
+                print("Control action is NaN, stopping simulation.")
+                break
+            
+            # Stop if max time is exceeded
+            if step > max_step:
+                print("\nSimulation timed out.")
+                break
+
     # Preserve the last printout
     print("")
+
+    # Save logs to a CSV file if specified
+    if log_file:
+        with open(log_file, "w", newline="") as csvfile:
+            fieldnames = ["step", "sim_time", "plan_time", "qpos", "qvel", "control", "running_cost", "terminal_cost"]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for log in logs:
+                writer.writerow(log)
+        print(f"\nLogs saved to {log_file}")
