@@ -7,15 +7,15 @@ import numpy as np
 from mujoco import mjx
 from typing import Optional, List
 from hydrax.alg_base import SamplingBasedController
+from hydrax.task_base import Task
 from tqdm import tqdm
 import os
 from chrono import Timer
 
 
 def run_headless_simulation(
+    task: Task,
     controller: SamplingBasedController,
-    mj_model: mujoco.MjModel,
-    mj_data: mujoco.MjData,
     frequency: float,
     seeds: List[int],
     delay_ctrl_start: int = 0,
@@ -41,7 +41,9 @@ def run_headless_simulation(
         np.random.seed(seed)
 
         try:
-            mujoco.mj_resetData(mj_model, mj_data)
+            mj_model = task.mj_model
+            mj_data = task.reset()
+
             replan_period = 1.0 / frequency
             sim_steps_per_replan = int(replan_period / mj_model.opt.timestep)
             sim_steps_per_replan = max(sim_steps_per_replan, 1)
@@ -86,7 +88,7 @@ def run_headless_simulation(
                     if np.isnan(u).any():
                         print("NaN detected in control input; stopping current experiment.")
                         break
-
+                
                 logs.append({
                     "step": step,
                     "sim_time": float(mjx_data.time),
@@ -95,6 +97,7 @@ def run_headless_simulation(
                     "qvel": np.array(mjx_data.qvel).tolist(),
                     "control": np.array(u).tolist(),
                     "running_cost": jnp.sum(rollouts.costs, axis=1).tolist(),
+                    "state_cost": float(rollouts.costs[0, 0]),
                 })
 
                 if np.isnan(u).any():
@@ -102,6 +105,7 @@ def run_headless_simulation(
 
         except Exception as e:
             print(f"Experiment with seed {seed} encountered an error: {e}")
+            continue
 
         finally:
             if log_file_prefix:
@@ -109,7 +113,7 @@ def run_headless_simulation(
                 with open(log_file, "w", newline="") as csvfile:
                     fieldnames = [
                         "step", "sim_time", "plan_time", "qpos", "qvel",
-                        "control", "running_cost", # "terminal_cost"
+                        "control", "running_cost", "state_cost"
                     ]
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                     writer.writeheader()

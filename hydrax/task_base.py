@@ -64,6 +64,11 @@ class Task(ABC):
             [mj_model.site(name).id for name in trace_sites]
         )
 
+    def reset(self) -> mujoco.MjData:
+        """Reset the simulation to a random initial state.
+        """
+        return mujoco.MjData(self.mj_model)
+
     @abstractmethod
     def running_cost(self, state: mjx.Data, control: jax.Array) -> jax.Array:
         """The running cost ℓ(xₜ, uₜ).
