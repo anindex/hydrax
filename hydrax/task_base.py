@@ -63,10 +63,24 @@ class Task(ABC):
         self.trace_site_ids = jnp.array(
             [mj_model.site(name).id for name in trace_sites]
         )
+        self.task_success = False
+        self.success_threshold = 5e-2
+    
+    def success(self, state: mjx.Data) -> bool:
+        """Check if the task is successful.
+
+        Args:
+            state: The current state xₜ.
+
+        Returns:
+            True if the task is successful, False otherwise.
+        """
+        return True
 
     def reset(self) -> mujoco.MjData:
         """Reset the simulation to a random initial state.
         """
+        self.task_success = False
         return mujoco.MjData(self.mj_model)
 
     @abstractmethod

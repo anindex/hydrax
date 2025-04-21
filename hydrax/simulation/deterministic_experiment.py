@@ -44,6 +44,7 @@ def run_headless_simulation(
             mj_model = task.mj_model
             mj_data = task.reset()
 
+            task_success = False
             replan_period = 1.0 / frequency
             sim_steps_per_replan = int(replan_period / mj_model.opt.timestep)
             sim_steps_per_replan = max(sim_steps_per_replan, 1)
@@ -56,6 +57,7 @@ def run_headless_simulation(
             jit_optimize = jax.jit(controller.optimize, donate_argnums=(1,))
 
             # Controller warm-up
+            policy_params, rollouts = jit_optimize(mjx_data, policy_params)
             policy_params, rollouts = jit_optimize(mjx_data, policy_params)
 
             step = 0
@@ -89,6 +91,8 @@ def run_headless_simulation(
                         print("NaN detected in control input; stopping current experiment.")
                         break
                 
+                task_success |= controller.task.success(mj_data)
+
                 logs.append({
                     "step": step,
                     "sim_time": float(mjx_data.time),
@@ -98,6 +102,7 @@ def run_headless_simulation(
                     "control": np.array(u).tolist(),
                     "running_cost": jnp.sum(rollouts.costs, axis=1).tolist(),
                     "state_cost": float(rollouts.costs[0, 0]),
+                    "success": task_success,
                 })
 
                 if np.isnan(u).any():
@@ -113,7 +118,7 @@ def run_headless_simulation(
                 with open(log_file, "w", newline="") as csvfile:
                     fieldnames = [
                         "step", "sim_time", "plan_time", "qpos", "qvel",
-                        "control", "running_cost", "state_cost"
+                        "control", "running_cost", "state_cost", "success"
                     ]
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                     writer.writeheader()

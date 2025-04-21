@@ -72,6 +72,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     )
 
     # Figure out how many sim steps to run before replanning
+    task_success = False
     replan_period = 1.0 / frequency
     sim_steps_per_replan = int(replan_period / mj_model.opt.timestep)
     sim_steps_per_replan = max(sim_steps_per_replan, 1)
@@ -215,6 +216,8 @@ def run_interactive(  # noqa: PLR0912, PLR0915
                 f"Realtime rate: {rtr:.2f}, plan time: {plan_time:.4f}s",
                 end="\r",
             )
+            # Check for task success
+            task_success |= controller.task.success(mj_data)
 
             # Log data for the current step
             logs.append({
@@ -226,6 +229,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
                 "control": np.array(u).tolist(),
                 "running_cost": jnp.sum(rollouts.costs, axis=1).tolist(),
                 "state_cost": float(rollouts.costs[0, 0]),
+                "success": task_success,
             })
 
 
@@ -244,7 +248,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     # Save logs to a CSV file if specified
     if log_file:
         with open(log_file, "w", newline="") as csvfile:
-            fieldnames = ["step", "sim_time", "plan_time", "qpos", "qvel", "control", "running_cost", "state_cost"]
+            fieldnames = ["step", "sim_time", "plan_time", "qpos", "qvel", "control", "running_cost", "state_cost", "success"]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             for log in logs:

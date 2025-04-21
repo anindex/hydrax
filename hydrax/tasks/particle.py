@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import mujoco
 from mujoco import mjx
-
+import numpy as np
 from hydrax import ROOT
 from hydrax.task_base import Task
 
@@ -39,6 +39,15 @@ class Particle(Task):
         
         self.pointmass_id = mj_model.site("pointmass").id
 
+    def reset(self) -> None:
+        """Randomize the target position."""
+        # Randomize initial position
+        mj_data = mujoco.MjData(self.mj_model)
+        base_pos = np.array([-0.2, 0.0])
+        base_pos += np.random.randn(2) * 0.02
+        mj_data.qpos[:2] = base_pos
+        return mj_data
+
     def running_cost(self, state: mjx.Data, control: jax.Array) -> jax.Array:
         """The running cost ℓ(xₜ, uₜ) encourages target tracking."""
         # wall SDF cost
@@ -58,6 +67,12 @@ class Particle(Task):
         )
         velocity_cost = jnp.sum(jnp.square(state.qvel))
         return 5.0 * position_cost + 0.1 * velocity_cost
+    
+    def success(self, state):
+        position_cost = jnp.sum(
+            jnp.square(state.site_xpos[self.pointmass_id] - state.mocap_pos[0])
+        )
+        return jnp.sqrt(position_cost) < self.success_threshold
 
     def domain_randomize_model(self, rng: jax.Array) -> Dict[str, jax.Array]:
         """Randomly perturb the actuator gains."""
