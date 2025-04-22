@@ -60,11 +60,15 @@ class SamplingBasedController(ABC):
         self.model = task.model
         self.randomized_axes = None
 
+        # Set the random seed for domain randomization
+        self.set_seed(seed)
+
+    def set_seed(self, seed: int) -> None:
         if self.num_randomizations > 1:
             # Make domain randomized models
             rng = jax.random.key(seed)
             rng, subrng = jax.random.split(rng)
-            subrngs = jax.random.split(subrng, num_randomizations)
+            subrngs = jax.random.split(subrng, self.num_randomizations)
             randomizations = jax.vmap(self.task.domain_randomize_model)(subrngs)
             self.model = self.task.model.tree_replace(randomizations)
 

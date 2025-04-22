@@ -43,6 +43,7 @@ def run_headless_simulation(
         try:
             mj_model = task.mj_model
             mj_data = task.reset()
+            controller.set_seed(seed)
 
             task_success = False
             replan_period = 1.0 / frequency

@@ -34,6 +34,7 @@ class CEM(SamplingBasedController):
         num_elites: int,
         sigma_start: float,
         sigma_min: float,
+        alpha: float = 0.5,
         num_randomizations: int = 1,
         risk_strategy: RiskStrategy = None,
         seed: int = 0,
@@ -56,6 +57,7 @@ class CEM(SamplingBasedController):
         self.sigma_min = sigma_min
         self.sigma_start = sigma_start
         self.num_elites = num_elites
+        self.alpha = alpha
 
     def init_params(self, seed: int = 0) -> CEMParams:
         """Initialize the policy parameters."""
@@ -93,6 +95,8 @@ class CEM(SamplingBasedController):
         cov = jnp.maximum(
             jnp.std(rollouts.controls[elites], axis=0), self.sigma_min
         )
+        mean = mean + self.alpha * (params.mean - mean)
+        cov = cov + self.alpha * (params.cov - cov)
 
         return params.replace(mean=mean, cov=cov)
 
