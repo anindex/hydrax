@@ -1,6 +1,7 @@
 from typing import Any, Tuple
 
-import evosax
+from evosax.algorithms.population_based.base import PopulationBasedAlgorithm
+from evosax.algorithms.distribution_based.base import DistributionBasedAlgorithm
 import jax
 import jax.numpy as jnp
 from flax.struct import dataclass
@@ -39,7 +40,7 @@ class Evosax(SamplingBasedController):
     def __init__(
         self,
         task: Task,
-        optimizer: evosax.Strategy,
+        optimizer: PopulationBasedAlgorithm | DistributionBasedAlgorithm,
         num_samples: int,
         es_params: EvoParams = None,
         num_randomizations: int = 1,
@@ -62,9 +63,13 @@ class Evosax(SamplingBasedController):
         """
         super().__init__(task, num_randomizations, risk_strategy, seed)
 
+        self.dummy_solution = jnp.zeros(
+            (task.planning_horizon * task.model.nu,)
+        )
+
         self.strategy = optimizer(
-            popsize=num_samples,
-            num_dims=task.model.nu * task.planning_horizon,
+            population_size=num_samples,
+            solution=self.dummy_solution,
             **kwargs,
         )
 
@@ -77,7 +82,14 @@ class Evosax(SamplingBasedController):
         rng = jax.random.key(seed)
         rng, init_rng = jax.random.split(rng)
         controls = jnp.zeros((self.task.planning_horizon, self.task.model.nu))
-        opt_state = self.strategy.initialize(init_rng, self.es_params)
+        if isinstance(self.strategy, DistributionBasedAlgorithm):
+            opt_state = self.strategy.init(init_rng, self.dummy_solution, self.es_params)
+        else:
+            fitness = jnp.full((self.strategy.population_size,), jnp.inf)
+            self.dummy_solution = self.dummy_solution[None, :].repeat(
+                self.strategy.population_size, axis=0
+            )
+            opt_state = self.strategy.init(init_rng, self.dummy_solution, fitness, self.es_params)
         return EvosaxParams(controls=controls, opt_state=opt_state, rng=rng)
 
     def sample_controls(
@@ -94,11 +106,12 @@ class Evosax(SamplingBasedController):
         controls = jnp.reshape(
             x,
             (
-                self.strategy.popsize,
+                self.strategy.population_size,
                 self.task.planning_horizon,
                 self.task.model.nu,
             ),
         )
+        controls = jnp.nan_to_num(controls)  # avoid NaNs in the controls
 
         return controls, params.replace(opt_state=opt_state, rng=rng)
 
@@ -106,10 +119,11 @@ class Evosax(SamplingBasedController):
         self, params: EvosaxParams, rollouts: Trajectory
     ) -> EvosaxParams:
         """Update the policy parameters based on the rollouts."""
+        rng, sample_rng = jax.random.split(params.rng)
         costs = jnp.sum(rollouts.costs, axis=1)  # sum over time steps
-        x = jnp.reshape(rollouts.controls, (self.strategy.popsize, -1))
-        opt_state = self.strategy.tell(
-            x, costs, params.opt_state, self.es_params
+        x = jnp.reshape(rollouts.controls, (self.strategy.population_size, -1))
+        opt_state, _ = self.strategy.tell(
+            sample_rng, x, costs, params.opt_state, self.es_params
         )
 
         best_idx = jnp.argmin(costs)
@@ -120,10 +134,10 @@ class Evosax(SamplingBasedController):
         # member from this generation, since the cost landscape is constantly
         # changing.
         opt_state = opt_state.replace(
-            best_member=x[best_idx], best_fitness=costs[best_idx]
+            best_solution=x[best_idx], best_fitness=costs[best_idx]
         )
 
-        return params.replace(controls=best_controls, opt_state=opt_state)
+        return params.replace(rng=rng, controls=best_controls, opt_state=opt_state)
 
     def get_action(self, params: EvosaxParams, t: float) -> jax.Array:
         """Get the control action for the current time step, zero order hold."""

@@ -1,6 +1,7 @@
 import argparse
 
 import evosax
+import evosax.algorithms
 import mujoco
 
 from hydrax.algs import CEM, MPPI, Evosax, PredictiveSampling
@@ -59,9 +60,8 @@ elif args.algorithm == "cmaes":
     print("Running CMA-ES")
     ctrl = Evosax(
         task,
-        evosax.Sep_CMA_ES,
+        evosax.algorithms.Sep_CMA_ES,
         num_samples=128,
-        elite_ratio=0.5,
         num_randomizations=8,
     )
 else:

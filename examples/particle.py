@@ -1,6 +1,7 @@
 import argparse
 
 import evosax
+import evosax.algorithms
 import mujoco
 
 from hydrax.algs import MPPI, Evosax, PredictiveSampling
@@ -52,28 +53,28 @@ elif args.algorithm == "mppi":
 
 elif args.algorithm == "cmaes":
     print("Running CMA-ES")
-    ctrl = Evosax(task, evosax.Sep_CMA_ES, num_samples=16, elite_ratio=0.5)
+    ctrl = Evosax(task, evosax.algorithms.Sep_CMA_ES, num_samples=16)
 
 elif args.algorithm == "samr":
     print("Running genetic algorithm with Self-Adaptation Mutation Rate (SAMR)")
-    ctrl = Evosax(task, evosax.SAMR_GA, num_samples=16)
+    ctrl = Evosax(task, evosax.algorithms.SAMR_GA, num_samples=16)
 
 elif args.algorithm == "de":
     print("Running Differential Evolution (DE)")
-    ctrl = Evosax(task, evosax.DE, num_samples=16)
+    ctrl = Evosax(task, evosax.algorithms.DifferentialEvolution, num_samples=16)
 
 elif args.algorithm == "gld":
     print("Running Gradient-Less Descent (GLD)")
-    ctrl = Evosax(task, evosax.GLD, num_samples=16)
+    ctrl = Evosax(task, evosax.algorithms.GradientlessDescent, num_samples=16)
 
 elif args.algorithm == "rs":
     print("Running uniform random search")
-    es_params = evosax.strategies.random.EvoParams(
-        range_min=-1.0,
-        range_max=1.0,
-    )
+    # es_params = evosax.strategies.random.EvoParams(
+    #     range_min=-1.0,
+    #     range_max=1.0,
+    # )
     ctrl = Evosax(
-        task, evosax.RandomSearch, num_samples=16, es_params=es_params
+        task, evosax.algorithms.RandomSearch, num_samples=16
     )
 else:
     parser.error("Invalid algorithm")
