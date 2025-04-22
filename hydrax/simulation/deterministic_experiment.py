@@ -107,6 +107,7 @@ def run_headless_simulation(
 
                 if np.isnan(u).any():
                     break
+            print(f"Task success: {task_success}")
 
         except Exception as e:
             print(f"Experiment with seed {seed} encountered an error: {e}")
