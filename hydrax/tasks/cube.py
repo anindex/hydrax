@@ -37,6 +37,7 @@ class CubeRotation(Task):
 
     def reset(self) -> None:
         """Randomize the target cube orientation."""
+        mj_model = self.mj_model
         random_axis = np.random.normal(size=(3,))
         random_axis /= np.linalg.norm(random_axis)
         random_angle = np.random.uniform(0, 2 * jnp.pi)
@@ -45,7 +46,7 @@ class CubeRotation(Task):
         qx, qy, qz = random_axis * np.sin(random_angle / 2)
         self.goal_orientation = jnp.array([qw, qx, qy, qz])
 
-        return mujoco.MjData(self.mj_model)
+        return mj_model, mujoco.MjData(mj_model)
 
     def success(self, state):
         position_err = self._get_cube_position_err(state)

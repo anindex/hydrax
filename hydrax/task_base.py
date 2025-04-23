@@ -81,7 +81,7 @@ class Task(ABC):
         """Reset the simulation to a random initial state.
         """
         self.task_success = False
-        return mujoco.MjData(self.mj_model)
+        return self.mj_model, mujoco.MjData(self.mj_model)
 
     @abstractmethod
     def running_cost(self, state: mjx.Data, control: jax.Array) -> jax.Array:

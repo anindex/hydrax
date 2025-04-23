@@ -46,7 +46,7 @@ class Particle(Task):
         base_pos = np.array([-0.2, 0.0])
         base_pos += np.random.randn(2) * 0.02
         mj_data.qpos[:2] = base_pos
-        return mj_data
+        return self.mj_model, mj_data
 
     def running_cost(self, state: mjx.Data, control: jax.Array) -> jax.Array:
         """The running cost ℓ(xₜ, uₜ) encourages target tracking."""

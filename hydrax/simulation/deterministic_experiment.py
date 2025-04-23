@@ -41,8 +41,7 @@ def run_headless_simulation(
         np.random.seed(seed)
 
         try:
-            mj_model = task.mj_model
-            mj_data = task.reset()
+            mj_model, mj_data = task.reset()
             controller.set_seed(seed)
 
             task_success = False

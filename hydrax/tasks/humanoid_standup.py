@@ -17,9 +17,6 @@ class HumanoidStandup(Task):
     ):
         """Load the MuJoCo model and set task parameters."""
         mj_model = mujoco.MjModel.from_xml_path(ROOT + "/models/g1/scene.xml")
-        # mj_model.opt.timestep = 0.01
-        # mj_model.opt.o_solimp = [0.9, 0.95, 0.001, 0.5, 2]
-        # mj_model.opt.enableflags = mujoco.mjtEnableBit.mjENBL_OVERRIDE
 
         super().__init__(
             mj_model,
@@ -42,10 +39,15 @@ class HumanoidStandup(Task):
     def reset(self) -> None:
         """Randomize the target height."""
         # Randomize the target height
+        self.task_success = False
+        mj_model = self.mj_model
+        mj_model.opt.timestep = 0.01
+        mj_model.opt.o_solimp = [0.9, 0.95, 0.001, 0.5, 2]
+        mj_model.opt.enableflags = mujoco.mjtEnableBit.mjENBL_OVERRIDE
         mj_data = mujoco.MjData(self.mj_model)
         mj_data.qpos[:] = self.mj_model.keyframe("stand").qpos
         mj_data.qpos[3:7] = [0.7, 0.0, -0.7, 0.0]
-        return mj_data
+        return mj_model, mj_data
     
     def success(self, state: mjx.Data) -> bool:
         """Check if the task is successful."""

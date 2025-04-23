@@ -41,6 +41,27 @@ class Crane(Task):
             self.payload_pos_sensor_adr : self.payload_pos_sensor_adr + 3
         ]
 
+    def reset(self):
+        """Randomize the target position."""
+        # Randomize the target position
+        mj_model = self.mj_model
+        mj_data = mujoco.MjData(mj_model)
+
+        # Introduce some modeling error
+        mj_model.dof_damping *= 0.1
+        body_idx = mj_model.body("payload").id
+        mj_model.body_mass[body_idx] *= 1.5
+        mj_model.body_inertia[body_idx] *= 1.5
+        mj_model.opt.timestep = 0.002
+
+        return mj_model, mj_data
+    
+    def success(self, state: mjx.Data) -> bool:
+        """Check if the task is successful."""
+        # Check if the payload is within the target area
+        payload_pos = self._get_payload_position(state)
+        return jnp.linalg.norm(payload_pos) < self.success_threshold
+
     def _get_payload_velocity(self, state: mjx.Data) -> jax.Array:
         """Get the velocity of the payload."""
         return state.sensordata[

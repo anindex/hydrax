@@ -38,6 +38,10 @@ class PushT(Task):
 
     def reset(self) -> None:
         """Randomize the initial pose of the T-shaped block."""
+        mj_model = self.mj_model
+        mj_model.opt.timestep = 0.001
+        mj_model.opt.iterations = 100
+        mj_model.opt.ls_iterations = 50
         mj_data = mujoco.MjData(self.mj_model)
         pos_xy = np.random.uniform(low=-0.1, high=0.1, size=(2,))
         angle = np.random.uniform(-np.pi, np.pi)
@@ -45,7 +49,7 @@ class PushT(Task):
         # Assuming the block's pose is at the beginning of qpos
         mj_data.qpos[:2] = pos_xy
         mj_data.qpos[2] = angle
-        return mj_data
+        return mj_model, mj_data
 
     def _get_position_err(self, state: mjx.Data) -> jax.Array:
         sensor_adr = self.model.sensor_adr[self.block_position_sensor]

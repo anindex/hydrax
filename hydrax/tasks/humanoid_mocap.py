@@ -61,6 +61,20 @@ class HumanoidMocap(Task):
         cost_weights[:7] = 10.0  # Base pose is more important
         self.cost_weights = jnp.array(cost_weights)
 
+    def reset(self) -> None:
+        """Randomize the target height."""
+        # Randomize the target height
+        self.task_success = False
+        mj_model = self.mj_model
+        mj_model.opt.timestep = 0.01
+        mj_model.opt.iterations = 10
+        mj_model.opt.ls_iterations = 50
+        mj_model.opt.o_solimp = [0.9, 0.95, 0.001, 0.5, 2]
+        mj_model.opt.enableflags = mujoco.mjtEnableBit.mjENBL_OVERRIDE
+        mj_data = mujoco.MjData(self.mj_model)
+        mj_data.qpos[:] = self.reference[0]
+        return mj_model, mj_data
+
     def _get_reference_configuration(self, t: jax.Array) -> jax.Array:
         """Get the reference position (q) at time t."""
         i = jnp.int32(t * 30.0)  # reference runs at 30 FPS
