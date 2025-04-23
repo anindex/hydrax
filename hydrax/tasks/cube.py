@@ -32,6 +32,7 @@ class CubeRotation(Task):
         )
 
         self.delta = 0.015
+        self.success_threshold = 0.03
         self.goal_orientation = jnp.array([1.0, 0.0, 0.0, 0.0])
 
     def reset(self) -> None:
@@ -45,6 +46,11 @@ class CubeRotation(Task):
         self.goal_orientation = jnp.array([qw, qx, qy, qz])
 
         return mujoco.MjData(self.mj_model)
+
+    def success(self, state):
+        position_err = self._get_cube_position_err(state)
+        orientation_err = self._get_cube_orientation_err(state)
+        return (jnp.linalg.norm(position_err) + jnp.linalg.norm(orientation_err)) < self.success_threshold
 
     def _get_cube_position_err(self, state: mjx.Data) -> jax.Array:
         sensor_adr = self.model.sensor_adr[self.cube_position_sensor]
