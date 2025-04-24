@@ -40,6 +40,13 @@ class Walker(Task):
         # TODO: make these parameters
         self.target_velocity = 1.5
         self.target_height = 1.2
+    
+    def reset(self) -> None:
+        mj_model = self.mj_model
+        mj_model.opt.timestep = 0.005
+        mj_model.opt.iterations = 50
+        mj_data = mujoco.MjData(mj_model)
+        return mj_model, mj_data
 
     def _get_torso_height(self, state: mjx.Data) -> jax.Array:
         """Get the height of the torso above the ground."""
