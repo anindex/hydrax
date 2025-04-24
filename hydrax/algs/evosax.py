@@ -63,13 +63,11 @@ class Evosax(SamplingBasedController):
         """
         super().__init__(task, num_randomizations, risk_strategy, seed)
 
-        self.dummy_solution = jnp.zeros(
-            (task.planning_horizon * task.model.nu,)
-        )
-
         self.strategy = optimizer(
             population_size=num_samples,
-            solution=self.dummy_solution,
+            solution=jnp.zeros(
+                (task.planning_horizon * task.model.nu,)
+            ),
             **kwargs,
         )
 
@@ -82,14 +80,17 @@ class Evosax(SamplingBasedController):
         rng = jax.random.key(seed)
         rng, init_rng = jax.random.split(rng)
         controls = jnp.zeros((self.task.planning_horizon, self.task.model.nu))
+        dummy_solution = jnp.zeros(
+            (self.task.planning_horizon * self.task.model.nu,)
+        )
         if isinstance(self.strategy, DistributionBasedAlgorithm):
-            opt_state = self.strategy.init(init_rng, self.dummy_solution, self.es_params)
+            opt_state = self.strategy.init(init_rng, dummy_solution, self.es_params)
         else:
             fitness = jnp.full((self.strategy.population_size,), jnp.inf)
-            self.dummy_solution = self.dummy_solution[None, :].repeat(
+            dummy_solution = dummy_solution[None, :].repeat(
                 self.strategy.population_size, axis=0
             )
-            opt_state = self.strategy.init(init_rng, self.dummy_solution, fitness, self.es_params)
+            opt_state = self.strategy.init(init_rng, dummy_solution, fitness, self.es_params)
         return EvosaxParams(controls=controls, opt_state=opt_state, rng=rng)
 
     def sample_controls(

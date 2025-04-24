@@ -13,7 +13,7 @@ class Particle(Task):
     """A velocity-controlled planar point mass chases a target position."""
 
     def __init__(
-        self, planning_horizon: int = 5, sim_steps_per_control_step: int = 5
+        self, planning_horizon: int = 20, sim_steps_per_control_step: int = 5
     ):
         """Load the MuJoCo model and set task parameters."""
         mj_model = mujoco.MjModel.from_xml_path(

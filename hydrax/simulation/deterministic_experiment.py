@@ -53,7 +53,7 @@ def run_headless_simulation(
             mjx_data = mjx_data.replace(
                 mocap_pos=mj_data.mocap_pos, mocap_quat=mj_data.mocap_quat
             )
-            policy_params = controller.init_params()
+            policy_params = controller.init_params(seed)
             jit_optimize = jax.jit(controller.optimize, donate_argnums=(1,))
 
             # Controller warm-up
