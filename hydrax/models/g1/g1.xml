@@ -97,6 +97,9 @@
   </asset>
 
   <worldbody>
+    <camera name='top_view' pos="0.198 -3.275 3.205" xyaxes="1.000 -0.000 -0.000 0.000 0.662 0.750"/>
+    <camera name='walk' pos="7.777 -2.227 5.224" xyaxes="0.539 0.842 0.000 -0.566 0.362 0.741"/>
+
     <light pos="1 0 3.5" dir="0 0 -1" directional="true"/>
     <body name="pelvis" pos="0 0 0.793" childclass="g1">
       <inertial pos="0 0 -0.07605" quat="1 0 -0.000399148 0" mass="3.813" diaginertia="0.010549 0.0093089 0.0079184"/>

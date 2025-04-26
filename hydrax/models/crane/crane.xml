@@ -14,6 +14,8 @@
 
   <!-- The robot -->
   <worldbody>
+    <camera name="top_view" pos="2.760 0.948 1.414" xyaxes="0.007 1.000 -0.000 -0.256 0.002 0.967"/>
+
     <body name="base" pos="0 0 0.3">
       <geom type="box" size="0.2 0.2 0.05" />
       <body name="imu1" pos="0.05 0.0 0.05">

@@ -36,6 +36,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     max_step: float = 1e4,
     log_file: str = None,
     record_video: bool = False,
+    show_ui: bool = True,
 ) -> None:
     """Run an interactive simulation with the MPC controller.
 
@@ -135,7 +136,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
         renderer = mujoco.Renderer(mj_model, height=height, width=width)
 
     # Start the simulation
-    with mujoco.viewer.launch_passive(mj_model, mj_data) as viewer:
+    with mujoco.viewer.launch_passive(mj_model, mj_data, show_left_ui=show_ui, show_right_ui=show_ui) as viewer:
         if fixed_camera_id is not None:
             # Set the custom camera
             viewer.cam.fixedcamid = fixed_camera_id
