@@ -40,6 +40,7 @@ def run_headless_simulation(
         logs = []
         np.random.seed(seed)
 
+        plan_times = []
         try:
             mj_model, mj_data = task.reset()
             controller.set_seed(seed)
@@ -57,7 +58,10 @@ def run_headless_simulation(
             jit_optimize = jax.jit(controller.optimize, donate_argnums=(1,))
 
             # Controller warm-up
-            policy_params, rollouts = jit_optimize(mjx_data, policy_params)
+            with Timer() as timer:
+                policy_params, rollouts = jit_optimize(mjx_data, policy_params)
+            warmup_time = timer.elapsed
+            print(f"JIT time: {warmup_time:.2f} seconds")
             policy_params, rollouts = jit_optimize(mjx_data, policy_params)
 
             step = 0
@@ -75,6 +79,8 @@ def run_headless_simulation(
                 with Timer() as timer:
                     policy_params, rollouts = jit_optimize(mjx_data, policy_params)
                 plan_time = timer.elapsed
+                if step > 1:
+                    plan_times.append(plan_time)
 
                 for i in range(sim_steps_per_replan):
                     t = i * mj_model.opt.timestep
@@ -114,6 +120,8 @@ def run_headless_simulation(
             continue
 
         finally:
+            plan_times = np.array(plan_times)
+            print(f"Iteration time: {np.mean(plan_times)} \\pm {np.std(plan_times)} seconds")
             if log_file_prefix:
                 log_file = os.path.join(save_path, f"{log_file_prefix}_seed_{seed}.csv")
                 with open(log_file, "w", newline="") as csvfile:
