@@ -102,6 +102,7 @@ def run_controller(
     shm_data: SharedMemoryMujocoData,
     ready: Event,
     finished: Event,
+    seed: int = 0,
 ) -> None:
     """Run the controller, communicating with the simulator over shared memory.
 
@@ -113,7 +114,7 @@ def run_controller(
     """
     # Initialize the policy parameters and state estimate
     mjx_data = mjx.make_data(ctrl.task.model)
-    policy_params = ctrl.init_params()
+    policy_params = ctrl.init_params(seed)
 
     # Print out some planning horizon information
     print(

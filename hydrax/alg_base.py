@@ -198,7 +198,7 @@ class SamplingBasedController(ABC):
         )
 
     @abstractmethod
-    def init_params(self) -> Any:
+    def init_params(self, seed: int = 0) -> Any:
         """Initialize the policy parameters, U = [u₀, u₁, ... ] ~ π(params).
 
         Returns:

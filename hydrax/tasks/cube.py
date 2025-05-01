@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import mujoco
 from mujoco import mjx
 import numpy as np
-from hydrax import ROOT
+from hydrax.files import get_root_path
 from hydrax.task_base import Task
 
 
@@ -15,7 +15,7 @@ class CubeRotation(Task):
     def __init__(
         self, planning_horizon: int = 3, sim_steps_per_control_step: int = 4
     ):
-        mj_model = mujoco.MjModel.from_xml_path(ROOT + "/models/cube/scene.xml")
+        mj_model = mujoco.MjModel.from_xml_path( (get_root_path() / "hydrax" / "models" /  "cube" / "scene.xml").as_posix())
 
         super().__init__(
             mj_model,
@@ -35,8 +35,9 @@ class CubeRotation(Task):
         self.success_threshold = 0.03
         self.goal_orientation = jnp.array([1.0, 0.0, 0.0, 0.0])
 
-    def reset(self) -> None:
-        """Randomize the target cube orientation."""
+    def reset(self, seed: int = 0) -> None:
+        """Randomize the target cube orientation, just for experiments."""
+        np.random.seed(seed)
         mj_model = self.mj_model
         random_axis = np.random.normal(size=(3,))
         random_axis /= np.linalg.norm(random_axis)

@@ -11,7 +11,7 @@ import numpy as np
 from mujoco import mjx
 
 from hydrax.alg_base import SamplingBasedController
-from hydrax import ROOT
+from hydrax.files import get_root_path
 from hydrax.utils.video import VideoRecorder
 
 """
@@ -37,6 +37,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     log_file: str = None,
     record_video: bool = False,
     show_ui: bool = True,
+    seed: int = 0,
 ) -> None:
     """Run an interactive simulation with the MPC controller.
 
@@ -84,6 +85,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     step_dt = sim_steps_per_replan * mj_model.opt.timestep
     actual_frequency = 1.0 / step_dt
     print(
+        f"Sim Step/Replan {sim_steps_per_replan} steps, "
         f"Planning at {actual_frequency} Hz, "
         f"simulating at {1.0/mj_model.opt.timestep} Hz"
     )
@@ -93,7 +95,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     mjx_data = mjx_data.replace(
         mocap_pos=mj_data.mocap_pos, mocap_quat=mj_data.mocap_quat
     )
-    policy_params = controller.init_params()
+    policy_params = controller.init_params(seed)
     jit_optimize = jax.jit(controller.optimize, donate_argnums=(1,))
 
     # Warm-up the controller
@@ -123,7 +125,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
         width, height = 720, 480
         # Create the video recorder
         recorder = VideoRecorder(
-            output_dir=os.path.join(ROOT, "recordings"),
+            output_dir=(get_root_path() / "recordings").as_posix(),
             width=width,
             height=height,
             fps=actual_frequency,

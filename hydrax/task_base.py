@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 import mujoco
 from mujoco import mjx
+import numpy as np
 
 
 class Task(ABC):
@@ -77,9 +78,10 @@ class Task(ABC):
         """
         return True
 
-    def reset(self) -> mujoco.MjData:
+    def reset(self, seed: int = 0) -> mujoco.MjData:
         """Reset the simulation to a random initial state.
         """
+        np.random.seed(seed)
         self.task_success = False
         return self.mj_model, mujoco.MjData(self.mj_model)
 

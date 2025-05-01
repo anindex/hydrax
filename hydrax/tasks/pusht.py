@@ -6,7 +6,7 @@ import mujoco
 from mujoco import mjx
 import numpy as np
 
-from hydrax import ROOT
+from hydrax.files import get_root_path
 from hydrax.task_base import Task
 
 
@@ -18,7 +18,7 @@ class PushT(Task):
     ):
         """Load the MuJoCo model and set task parameters."""
         mj_model = mujoco.MjModel.from_xml_path(
-            ROOT + "/models/pusht/scene.xml"
+            (get_root_path() / "hydrax" / "models" / "pusht" / "scene.xml").as_posix()
         )
 
         super().__init__(
@@ -36,14 +36,16 @@ class PushT(Task):
             mj_model, mujoco.mjtObj.mjOBJ_SENSOR, "orientation"
         )
 
-    def reset(self) -> None:
+    def reset(self, seed: int = 0) -> None:
         """Randomize the initial pose of the T-shaped block."""
+        # Set the random seed for reproducibility
+        np.random.seed(seed)
         mj_model = self.mj_model
         mj_model.opt.timestep = 0.001
         mj_model.opt.iterations = 100
         mj_model.opt.ls_iterations = 50
         mj_data = mujoco.MjData(self.mj_model)
-        pos_xy = np.random.uniform(low=-0.1, high=0.1, size=(2,))
+        pos_xy = np.random.uniform(low=-0.3, high=0.3, size=(2,))
         angle = np.random.uniform(-np.pi, np.pi)
 
         # Assuming the block's pose is at the beginning of qpos

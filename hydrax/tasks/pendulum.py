@@ -2,8 +2,8 @@ import jax
 import jax.numpy as jnp
 import mujoco
 from mujoco import mjx
-
-from hydrax import ROOT
+import numpy as np
+from hydrax.files import get_root_path
 from hydrax.task_base import Task
 
 
@@ -15,7 +15,7 @@ class Pendulum(Task):
     ):
         """Load the MuJoCo model and set task parameters."""
         mj_model = mujoco.MjModel.from_xml_path(
-            ROOT + "/models/pendulum/scene.xml"
+            (get_root_path() / "hydrax" / "models" / "pendulum" / "scene.xml").as_posix()
         )
 
         super().__init__(
@@ -24,6 +24,14 @@ class Pendulum(Task):
             sim_steps_per_control_step=sim_steps_per_control_step,
             trace_sites=["tip"],
         )
+
+    def reset(self, seed: int = 0) -> None:
+        np.random.seed(seed)
+        mj_model = self.mj_model
+        mj_data = mujoco.MjData(mj_model)
+        mj_data.qpos[:] = np.array([0.0])
+        mj_data.qvel[:] = np.array([0.0])
+        return mj_model, mj_data
 
     def _distance_to_upright(self, state: mjx.Data) -> jax.Array:
         """Get a measure of distance to the upright position."""

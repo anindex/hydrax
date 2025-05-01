@@ -4,8 +4,8 @@ import jax
 import jax.numpy as jnp
 import mujoco
 from mujoco import mjx
-
-from hydrax import ROOT
+import numpy as np
+from hydrax.files import get_root_path
 from hydrax.task_base import Task
 
 
@@ -17,7 +17,7 @@ class Crane(Task):
     ):
         """Load the MuJoCo model and set task parameters."""
         mj_model = mujoco.MjModel.from_xml_path(
-            ROOT + "/models/crane/scene.xml"
+            (get_root_path() / "hydrax" / "models" /  "crane" / "scene.xml").as_posix()
         )
 
         super().__init__(
@@ -41,9 +41,8 @@ class Crane(Task):
             self.payload_pos_sensor_adr : self.payload_pos_sensor_adr + 3
         ]
 
-    def reset(self):
-        """Randomize the target position."""
-        # Randomize the target position
+    def reset(self, seed: int = 0) -> None:
+        np.random.seed(seed)
         mj_model = self.mj_model
         mj_data = mujoco.MjData(mj_model)
 

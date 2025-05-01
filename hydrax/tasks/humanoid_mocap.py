@@ -4,32 +4,25 @@ import jax
 import jax.numpy as jnp
 import mujoco
 import numpy as np
-from huggingface_hub import hf_hub_download
 from mujoco import mjx
 
-from hydrax import ROOT
+from hydrax.files import get_root_path
 from hydrax.task_base import Task
 
 
 class HumanoidMocap(Task):
     """The Unitree G1 humanoid tracks a reference from motion capture.
-
-    Retargeted motion capture data comes from the LAFAN1 dataset:
-    https://huggingface.co/datasets/unitreerobotics/LAFAN1_Retargeting_Dataset/.
     """
 
     def __init__(
         self,
         planning_horizon: int = 4,
         sim_steps_per_control_step: int = 5,
-        reference_filename: str = "walk1_subject1.csv",
     ):
         """Load the MuJoCo model and set task parameters.
-
-        The list of available reference files can be found at
-        https://huggingface.co/datasets/unitreerobotics/LAFAN1_Retargeting_Dataset/tree/main/g1.
         """
-        mj_model = mujoco.MjModel.from_xml_path(ROOT + "/models/g1/scene.xml")
+        model_path = (get_root_path() / "hydrax" / "models" /  "g1").as_posix()
+        mj_model = mujoco.MjModel.from_xml_path(model_path + "/scene.xml")
 
         super().__init__(
             mj_model,
@@ -40,12 +33,7 @@ class HumanoidMocap(Task):
 
         # Download the retargeted mocap reference
         reference = np.loadtxt(
-            hf_hub_download(
-                repo_id="unitreerobotics/LAFAN1_Retargeting_Dataset",
-                filename=reference_filename,
-                subfolder="g1",
-                repo_type="dataset",
-            ),
+            model_path + "/walk1_subject1.csv",
             delimiter=",",
         )
 
@@ -61,9 +49,8 @@ class HumanoidMocap(Task):
         cost_weights[:7] = 10.0  # Base pose is more important
         self.cost_weights = jnp.array(cost_weights)
 
-    def reset(self) -> None:
-        """Randomize the target height."""
-        # Randomize the target height
+    def reset(self, seed: int = 0) -> None:
+        np.random.seed(seed)
         self.task_success = False
         mj_model = self.mj_model
         mj_model.opt.timestep = 0.01

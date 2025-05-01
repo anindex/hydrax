@@ -4,8 +4,8 @@ import jax
 import jax.numpy as jnp
 import mujoco
 from mujoco import mjx
-
-from hydrax import ROOT
+import numpy as np
+from hydrax.files import get_root_path
 from hydrax.task_base import Task
 
 
@@ -16,7 +16,7 @@ class HumanoidStandup(Task):
         self, planning_horizon: int = 3, sim_steps_per_control_step: int = 10
     ):
         """Load the MuJoCo model and set task parameters."""
-        mj_model = mujoco.MjModel.from_xml_path(ROOT + "/models/g1/scene.xml")
+        mj_model = mujoco.MjModel.from_xml_path((get_root_path() / "hydrax" / "models" / "g1" / "scene.xml").as_posix())
 
         super().__init__(
             mj_model,
@@ -36,9 +36,8 @@ class HumanoidStandup(Task):
         # Standing configuration
         self.qstand = jnp.array(mj_model.keyframe("stand").qpos)
     
-    def reset(self) -> None:
-        """Randomize the target height."""
-        # Randomize the target height
+    def reset(self, seed: int = 0) -> None:
+        np.random.seed(seed)
         self.task_success = False
         mj_model = self.mj_model
         mj_model.opt.timestep = 0.01

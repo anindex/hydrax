@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import mujoco
 from mujoco import mjx
 
-from hydrax import ROOT
+from hydrax.files import get_root_path
 from hydrax.task_base import Task
 
 
@@ -15,7 +15,7 @@ class DoubleCartPole(Task):
     ):
         """Load the MuJoCo model and set task parameters."""
         mj_model = mujoco.MjModel.from_xml_path(
-            ROOT + "/models/double_cart_pole/scene.xml"
+            (get_root_path() / "hydrax" / "models" /  "double_cart_pole" / "scene.xml").as_posix()
         )
 
         super().__init__(

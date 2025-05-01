@@ -2,8 +2,8 @@ import jax
 import jax.numpy as jnp
 import mujoco
 from mujoco import mjx
-
-from hydrax import ROOT
+import numpy as np
+from hydrax.files import get_root_path
 from hydrax.task_base import Task
 
 
@@ -15,7 +15,7 @@ class Walker(Task):
     ):
         """Load the MuJoCo model and set task parameters."""
         mj_model = mujoco.MjModel.from_xml_path(
-            ROOT + "/models/walker/scene.xml"
+            (get_root_path() / "hydrax" / "models" / "walker" / "scene.xml").as_posix()
         )
 
         super().__init__(
@@ -41,7 +41,8 @@ class Walker(Task):
         self.target_velocity = 1.5
         self.target_height = 1.2
     
-    def reset(self) -> None:
+    def reset(self, seed: int = 0) -> None:
+        np.random.seed(seed)        
         mj_model = self.mj_model
         mj_model.opt.timestep = 0.005
         mj_model.opt.iterations = 50

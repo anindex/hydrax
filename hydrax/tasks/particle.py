@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import mujoco
 from mujoco import mjx
 import numpy as np
-from hydrax import ROOT
+from hydrax.files import get_root_path
 from hydrax.task_base import Task
 
 
@@ -17,7 +17,7 @@ class Particle(Task):
     ):
         """Load the MuJoCo model and set task parameters."""
         mj_model = mujoco.MjModel.from_xml_path(
-            ROOT + "/models/particle/scene.xml"
+            (get_root_path() / "hydrax" / "models" / "particle" / "scene.xml").as_posix()
         )
 
         super().__init__(
@@ -39,9 +39,9 @@ class Particle(Task):
         
         self.pointmass_id = mj_model.site("pointmass").id
 
-    def reset(self) -> None:
-        """Randomize the target position."""
-        # Randomize initial position
+    def reset(self, seed: int = 0) -> None:
+        np.random.seed(seed)
+        self.task_success = False
         mj_data = mujoco.MjData(self.mj_model)
         base_pos = np.array([-0.2, 0.0])
         base_pos += np.random.randn(2) * 0.02
