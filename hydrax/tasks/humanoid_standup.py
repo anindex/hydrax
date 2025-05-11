@@ -12,16 +12,12 @@ from hydrax.task_base import Task
 class HumanoidStandup(Task):
     """Standup task for the Unitree G1 humanoid."""
 
-    def __init__(
-        self, planning_horizon: int = 3, sim_steps_per_control_step: int = 10
-    ):
+    def __init__(self) -> None:
         """Load the MuJoCo model and set task parameters."""
         mj_model = mujoco.MjModel.from_xml_path((get_root_path() / "hydrax" / "models" / "g1" / "scene.xml").as_posix())
 
         super().__init__(
             mj_model,
-            planning_horizon=planning_horizon,
-            sim_steps_per_control_step=sim_steps_per_control_step,
             trace_sites=["imu_in_torso", "left_foot", "right_foot"],
         )
 

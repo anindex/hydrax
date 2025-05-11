@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hydrax"
-version = "0.0.1"
+version = "0.0.2"
 description = "Sampling-based model predictive control on GPU with JAX/MJX"
 readme = "README.md"
 license = {text="MIT"}
@@ -13,6 +13,7 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python",
 ]
+# TODO: evosax v0.2.0 introduced many breaking changes in the API that cause test failures
 dependencies = [
     "jax[cuda12]",
     "flax",
@@ -24,6 +25,7 @@ dependencies = [
     "mujoco-mjx",
     "tqdm",
     "chrono",
+    "interpax",
     "evosax==0.2.0",
     "huggingface_hub==0.29.3",
 ]
@@ -48,7 +50,6 @@ select = [
 ]
 ignore = [
     "ANN003",  # missing type annotation for **kwargs
-    "ANN101",  # missing type annotation for `self` in method
     "ANN202",  # missing return type annotation for private function
     "ANN204",  # missing return type annotation for `__init__`
     "ANN401",  # dynamically typed expressions (typing.Any) are disallowed
@@ -66,7 +67,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
-known-first-party = ["hydra"]
+known-first-party = ["hydrax"]
 split-on-trailing-comma = false
 
 [tool.ruff.format]

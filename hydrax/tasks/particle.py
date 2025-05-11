@@ -12,20 +12,12 @@ from hydrax.task_base import Task
 class Particle(Task):
     """A velocity-controlled planar point mass chases a target position."""
 
-    def __init__(
-        self, planning_horizon: int = 20, sim_steps_per_control_step: int = 5
-    ):
+    def __init__(self) -> None:
         """Load the MuJoCo model and set task parameters."""
         mj_model = mujoco.MjModel.from_xml_path(
             (get_root_path() / "hydrax" / "models" / "particle" / "scene.xml").as_posix()
         )
 
-        super().__init__(
-            mj_model,
-            planning_horizon=planning_horizon,
-            sim_steps_per_control_step=sim_steps_per_control_step,
-            trace_sites=["pointmass"],
-        )
         self.wall_pos = jnp.array([
             mj_model.geom("wall_ix").pos[:2],
             mj_model.geom("wall_iy").pos[:2],
@@ -37,6 +29,7 @@ class Particle(Task):
             mj_model.geom("wall_neg_iy").size[:2],
         ])
         
+        super().__init__(mj_model, trace_sites=["pointmass"])
         self.pointmass_id = mj_model.site("pointmass").id
 
     def reset(self, seed: int = 0) -> None:

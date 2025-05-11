@@ -1,27 +1,26 @@
-from typing import Tuple, Any
+from typing import Literal, Tuple
 
 import jax
 import jax.numpy as jnp
 from flax.struct import dataclass
 
-from hydrax.alg_base import SamplingBasedController, Trajectory
+from hydrax.alg_base import SamplingBasedController, SamplingParams, Trajectory
 from hydrax.risk import RiskStrategy
 from hydrax.task_base import Task
 
 
 @dataclass
-class CEMParams:
+class CEMParams(SamplingParams):
     """Policy parameters for the cross-entropy method.
 
     Attributes:
-        mean: The mean of the control distribution, μ = [u₀, u₁, ..., ].
-        cov: The (diagonal) covariance of the control distribution.
+        tk: The knot times of the control spline.
+        mean: The mean of the control spline knot distribution, μ = [u₀, ...].
         rng: The pseudo-random number generator key.
+        cov: The (diagonal) covariance of the control distribution.
     """
 
-    mean: jax.Array
     cov: jax.Array
-    rng: jax.Array
 
 
 class CEM(SamplingBasedController):
@@ -36,9 +35,14 @@ class CEM(SamplingBasedController):
         sigma_min: float,
         alpha: float = 0.5,
         num_randomizations: int = 1,
+        explore_fraction: float = 0.0,
         risk_strategy: RiskStrategy = None,
         seed: int = 0,
-    ):
+        plan_horizon: float = 1.0,
+        spline_type: Literal["zero", "linear", "cubic"] = "zero",
+        num_knots: int = 4,
+        iterations: int = 1,
+    ) -> None:
         """Initialize the controller.
 
         Args:
@@ -47,37 +51,82 @@ class CEM(SamplingBasedController):
             num_elites: The number of elite samples to keep at each iteration.
             sigma_start: The initial standard deviation for the controls.
             sigma_min: The minimum standard deviation for the controls.
+            explore_fraction: Fraction of samples to keep at sigma_start.
             num_randomizations: The number of domain randomizations to use.
             risk_strategy: How to combining costs from different randomizations.
                            Defaults to average cost.
             seed: The random seed for domain randomization.
+            plan_horizon: The time horizon for the rollout in seconds.
+            spline_type: The type of spline used for control interpolation.
+                         Defaults to "zero" (zero-order hold).
+            num_knots: The number of knots in the control spline.
+            iterations: The number of optimization iterations to perform.
         """
-        super().__init__(task, num_randomizations, risk_strategy, seed)
+        if not 0 <= explore_fraction <= 1:
+            raise ValueError(
+                f"explore_fraction must be between 0 and 1, got "
+                f"{explore_fraction}"
+            )
+        super().__init__(
+            task,
+            num_randomizations=num_randomizations,
+            risk_strategy=risk_strategy,
+            seed=seed,
+            plan_horizon=plan_horizon,
+            spline_type=spline_type,
+            num_knots=num_knots,
+            iterations=iterations,
+        )
         self.num_samples = num_samples
         self.sigma_min = sigma_min
         self.sigma_start = sigma_start
         self.num_elites = num_elites
         self.alpha = alpha
+        self.num_explore = int(self.num_samples * explore_fraction)
 
-    def init_params(self, seed: int = 0) -> CEMParams:
+    def init_params(
+        self, initial_knots: jax.Array = None, seed: int = 0
+    ) -> CEMParams:
         """Initialize the policy parameters."""
-        rng = jax.random.key(seed)
-        mean = jnp.zeros((self.task.planning_horizon, self.task.model.nu))
-        cov = jnp.full_like(mean, self.sigma_start)
-        return CEMParams(mean=mean, cov=cov, rng=rng)
-
-    def sample_controls(self, params: CEMParams) -> Tuple[jax.Array, CEMParams]:
-        """Sample a control sequence."""
-        rng, sample_rng = jax.random.split(params.rng)
-        noise = jax.random.normal(
-            sample_rng,
-            (
-                self.num_samples,
-                self.task.planning_horizon,
-                self.task.model.nu,
-            ),
+        _params = super().init_params(initial_knots, seed)
+        cov = jnp.full_like(_params.mean, self.sigma_start)
+        return CEMParams(
+            tk=_params.tk, mean=_params.mean, cov=cov, rng=_params.rng
         )
-        controls = params.mean + params.cov * noise
+
+    def sample_knots(self, params: CEMParams) -> Tuple[jax.Array, CEMParams]:
+        """Sample a control sequence."""
+        rng, sample_rng, explore_rng = jax.random.split(params.rng, 3)
+
+        # Pre-compute shapes for both main and exploration samples
+        main_shape = (
+            self.num_samples - self.num_explore,
+            self.num_knots,
+            self.task.model.nu,
+        )
+        explore_shape = (
+            self.num_explore,
+            self.num_knots,
+            self.task.model.nu,
+        )
+
+        # Sample main knots with current covariance
+        main_controls = (
+            params.mean + params.cov * jax.random.normal(sample_rng, main_shape)
+            if main_shape[0] > 0
+            else jnp.empty(main_shape)
+        )
+
+        # Sample exploration knots with initial covariance
+        explore_controls = (
+            params.mean
+            + self.sigma_start * jax.random.normal(explore_rng, explore_shape)
+            if explore_shape[0] > 0
+            else jnp.empty(explore_shape)
+        )
+
+        # Combine both sets of controls
+        controls = jnp.concatenate([main_controls, explore_controls])
         return controls, params.replace(rng=rng)
 
     def update_params(
@@ -91,17 +140,11 @@ class CEM(SamplingBasedController):
         elites = indices[: self.num_elites]
 
         # The new proposal distribution is a Gaussian fit to the elites.
-        mean = jnp.mean(rollouts.controls[elites], axis=0)
+        mean = jnp.mean(rollouts.knots[elites], axis=0)
         cov = jnp.maximum(
-            jnp.std(rollouts.controls[elites], axis=0), self.sigma_min
+            jnp.std(rollouts.knots[elites], axis=0), self.sigma_min
         )
         mean = mean + self.alpha * (params.mean - mean)
         cov = cov + self.alpha * (params.cov - cov)
 
         return params.replace(mean=mean, cov=cov)
-
-    def get_action(self, params: CEMParams, t: float) -> jax.Array:
-        """Get the control action for the current time step, zero order hold."""
-        idx_float = t / self.task.dt  # zero order hold
-        idx = jnp.floor(idx_float).astype(jnp.int32)
-        return params.mean[idx]

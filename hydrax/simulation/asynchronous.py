@@ -102,6 +102,7 @@ def run_controller(
     shm_data: SharedMemoryMujocoData,
     ready: Event,
     finished: Event,
+    initial_knots: jax.Array = None,
     seed: int = 0,
 ) -> None:
     """Run the controller, communicating with the simulator over shared memory.
@@ -111,15 +112,17 @@ def run_controller(
         shm_data: Shared memory object for state and control action data.
         ready: Shared flag for signaling that the controller is ready.
         finished: Shared flag for stopping the simulation.
+        initial_knots: The initial control to use for the controller.
     """
     # Initialize the policy parameters and state estimate
     mjx_data = mjx.make_data(ctrl.task.model)
-    policy_params = ctrl.init_params(seed)
+    policy_params = ctrl.init_params(initial_knots=initial_knots, seed=seed)
 
     # Print out some planning horizon information
     print(
-        f"Planning with {ctrl.task.planning_horizon} steps "
-        f"over a {ctrl.task.planning_horizon * ctrl.task.dt} second horizon."
+        f"Planning with {ctrl.ctrl_steps} steps "
+        f"over a {ctrl.plan_horizon} second horizon "
+        f"with {ctrl.num_knots} knots."
     )
 
     # Jit the optimizer step, then signal that we're ready to go
@@ -135,12 +138,14 @@ def run_controller(
     # Signal that we're ready to start
     ready.set()
 
+    start_time = time.time()
     while not finished.is_set():
-        st = time.time()
+        curr_time = time.time()
 
         # Set the start state for the controller, reading the lastest state info
         # from shared memory
         mjx_data = mjx_data.replace(
+            time=jnp.array(curr_time - start_time, dtype=jnp.float32),
             qpos=jnp.array(shm_data.qpos[:]),
             qvel=jnp.array(shm_data.qvel[:]),
         )
@@ -154,15 +159,14 @@ def run_controller(
         policy_params = jit_optimize(mjx_data, policy_params)
 
         # Send the action to the simulator.
-        # TODO: send the full parameters rather than assuming zero-order
-        # hold and a sufficiently high control rate
-        a = get_action(policy_params, 0.0)
         shm_data.ctrl[:] = np.array(
-            a, dtype=np.float32
+            get_action(policy_params, mjx_data.time), dtype=np.float32
         )
 
         # Print the current planning frequency
-        print(f"Controller running at {1/(time.time() - st):.2f} Hz", end="\r")
+        print(
+            f"Controller running at {1 / (time.time() - st):.2f} Hz", end="\r"
+        )
 
     # Preserve the last printed line
     print("")
@@ -226,6 +230,7 @@ def run_interactive(
     mj_model: mujoco.MjModel,
     mj_data: mujoco.MjData,
     delay_ctrl_start: bool=False,
+    initial_knots: jax.Array = None,
 ) -> None:
     """Run an asynchronous interactive simulation.
 
@@ -238,6 +243,7 @@ def run_interactive(
         mj_model: Mujoco model for the simulation.
         mj_data: Mujoco data specifying the initial state.
         delay_ctrl_start: Whether to delay the controller start.
+        initial_knots: The initial knot points for the control spline at t=0
     """
     ctx = mp.get_context("spawn")  # Need to use spawn for jax compatibility
 
@@ -252,7 +258,8 @@ def run_interactive(
         args=(mj_model, mj_data, shm_data, ready, finished, delay_ctrl_start),
     )
     control = ctx.Process(
-        target=run_controller, args=(controller, shm_data, ready, finished)
+        target=run_controller,
+        args=(controller, shm_data, ready, finished, initial_knots),
     )
 
     # Run the simulation and controller in parallel

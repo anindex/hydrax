@@ -25,6 +25,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     mj_model: mujoco.MjModel,
     mj_data: mujoco.MjData,
     frequency: float,
+    initial_knots: jax.Array = None,
     fixed_camera_id: int = None,
     show_traces: bool = True,
     max_traces: int = 5,
@@ -32,7 +33,6 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     trace_color: Sequence = [1.0, 1.0, 1.0, 0.1],
     reference: np.ndarray = None,
     reference_fps: float = 30.0,
-    delay_ctrl_start: int = 0,
     max_step: float = 1e4,
     log_file: str = None,
     record_video: bool = False,
@@ -56,6 +56,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
                   be slightly different from the model used by the controller.
         mj_data: A MuJoCo data object containing the initial system state.
         frequency: The requested control frequency (Hz) for replanning.
+        initial_knots: The initial knot points for the control spline at t=0
         fixed_camera_id: The camera ID to use for the fixed camera view.
         show_traces: Whether to show traces for the site positions.
         max_traces: The maximum number of traces to show at once.
@@ -63,8 +64,6 @@ def run_interactive(  # noqa: PLR0912, PLR0915
         trace_color: The RGBA color of the trace lines.
         reference: The reference trajectory (qs) to visualize.
         reference_fps: The frame rate of the reference trajectory.
-        delay_ctrl_start: The number of simulation steps to delay the controller
-                          start by.
         log_file: The directory to save the logs to. If None, no logs are saved.
         max_step: The maximum number of simulation steps to run before timeout.
     """
@@ -72,9 +71,9 @@ def run_interactive(  # noqa: PLR0912, PLR0915
 
     # Report the planning horizon in seconds for debugging
     print(
-        f"Planning with {controller.task.planning_horizon} steps "
-        f"over a {controller.task.planning_horizon * controller.task.dt} "
-        f"second horizon."
+        f"Planning with {controller.ctrl_steps} steps "
+        f"over a {controller.plan_horizon} second horizon "
+        f"with {controller.num_knots} knots."
     )
 
     # Figure out how many sim steps to run before replanning
@@ -87,7 +86,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     print(
         f"Sim Step/Replan {sim_steps_per_replan} steps, "
         f"Planning at {actual_frequency} Hz, "
-        f"simulating at {1.0/mj_model.opt.timestep} Hz"
+        f"simulating at {1.0 / mj_model.opt.timestep} Hz"
     )
 
     # Initialize the controller
@@ -95,14 +94,21 @@ def run_interactive(  # noqa: PLR0912, PLR0915
     mjx_data = mjx_data.replace(
         mocap_pos=mj_data.mocap_pos, mocap_quat=mj_data.mocap_quat
     )
-    policy_params = controller.init_params(seed)
-    jit_optimize = jax.jit(controller.optimize, donate_argnums=(1,))
+    policy_params = controller.init_params(initial_knots=initial_knots, seed=seed)
+    jit_optimize = jax.jit(controller.optimize)
+    jit_interp_func = jax.jit(controller.interp_func)
 
     # Warm-up the controller
     print("Jitting the controller...")
     st = time.time()
     policy_params, rollouts = jit_optimize(mjx_data, policy_params)
     policy_params, rollouts = jit_optimize(mjx_data, policy_params)
+
+    tq = jnp.arange(0, sim_steps_per_replan) * mj_model.opt.timestep
+    tk = policy_params.tk
+    knots = policy_params.mean[None, ...]
+    _ = jit_interp_func(tq, tk, knots)
+    _ = jit_interp_func(tq, tk, knots)
     print(f"Time to jit: {time.time() - st:.3f} seconds")
     num_traces = min(rollouts.controls.shape[1], max_traces)
 
@@ -137,6 +143,25 @@ def run_interactive(  # noqa: PLR0912, PLR0915
             record_video = False
         renderer = mujoco.Renderer(mj_model, height=height, width=width)
 
+    # Initialize video recording if enabled
+    recorder = None
+    if record_video:
+        # Video dimensions
+        width, height = 720, 480
+        # Create the video recorder
+        recorder = VideoRecorder(
+            output_dir=(get_root_path() / "recordings").as_posix(),
+            width=width,
+            height=height,
+            fps=actual_frequency,
+        )
+        # Ensure model visual offscreen buffer is compatible with video recording
+        mj_model.vis.global_.offwidth = width
+        mj_model.vis.global_.offheight = height
+        if not recorder.start():
+            record_video = False
+        renderer = mujoco.Renderer(mj_model, height=height, width=width)
+
     # Start the simulation
     with mujoco.viewer.launch_passive(mj_model, mj_data, show_left_ui=show_ui, show_right_ui=show_ui) as viewer:
         if fixed_camera_id is not None:
@@ -148,7 +173,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
         if show_traces:
             num_trace_sites = len(controller.task.trace_site_ids)
             for i in range(
-                num_trace_sites * num_traces * controller.task.planning_horizon
+                num_trace_sites * num_traces * controller.ctrl_steps
             ):
                 mujoco.mjv_initGeom(
                     viewer.user_scn.geoms[i],
@@ -190,7 +215,7 @@ def run_interactive(  # noqa: PLR0912, PLR0915
                 ii = 0
                 for k in range(num_trace_sites):
                     for i in range(num_traces):
-                        for j in range(controller.task.planning_horizon):
+                        for j in range(controller.ctrl_steps):
                             mujoco.mjv_connector(
                                 viewer.user_scn.geoms[ii],
                                 mujoco.mjtGeom.mjGEOM_LINE,
@@ -217,26 +242,28 @@ def run_interactive(  # noqa: PLR0912, PLR0915
                     viewer.user_scn,
                 )
 
-            # Step the simulation
-            for i in range(sim_steps_per_replan):
-                t = i * mj_model.opt.timestep
-                u = controller.get_action(policy_params, t)
-                # if any u is nan, stop 
+            # query the control spline at the sim frequency
+            # (we assume the sim freq is the same as the low-level ctrl freq)
+            sim_dt = mj_model.opt.timestep
+            t_curr = mj_data.time
 
-                if delay_ctrl_start > 0:
-                    delay_ctrl_start -= 1
-                    # print(f"Delaying controller start for {delay_ctrl_start} steps")
-                else:
-                    mj_data.ctrl[:] = np.array(u)
+            tq = jnp.arange(0, sim_steps_per_replan) * sim_dt + t_curr
+            tk = policy_params.tk
+            knots = policy_params.mean[None, ...]
+            us = np.asarray(jit_interp_func(tq, tk, knots))[0]  # (ss, nu)
+
+            # simulate the system between spline replanning steps
+            for i in range(sim_steps_per_replan):
+                mj_data.ctrl[:] = np.array(us[i])
                 mujoco.mj_step(mj_model, mj_data)
                 viewer.sync()
-            
-            # Capture frame if recording
-            if record_video and recorder.is_recording:
-                renderer.update_scene(mj_data, viewer.cam)
-                frame = renderer.render()
-                recorder.add_frame(frame.tobytes())
-                
+
+                # Capture frame if recording
+                if record_video and recorder.is_recording:
+                    renderer.update_scene(mj_data, viewer.cam)
+                    frame = renderer.render()
+                    recorder.add_frame(frame.tobytes())
+
             # Try to run in roughly realtime
             elapsed = time.time() - start_time
             if elapsed < step_dt:
@@ -252,20 +279,21 @@ def run_interactive(  # noqa: PLR0912, PLR0915
             task_success |= controller.task.success(mj_data)
 
             # Log data for the current step
-            logs.append({
-                "step": step,
-                "sim_time": float(mjx_data.time),
-                "plan_time": plan_time,
-                "qpos": np.array(mjx_data.qpos).tolist(),
-                "qvel": np.array(mjx_data.qvel).tolist(),
-                "control": np.array(u).tolist(),
-                "running_cost": jnp.sum(rollouts.costs, axis=1).tolist(),
-                "state_cost": float(rollouts.costs[0, 0]),
-                "success": task_success,
-            })
+            if log_file is not None:
+                logs.append({
+                    "step": step,
+                    "sim_time": float(mjx_data.time),
+                    "plan_time": plan_time,
+                    "qpos": np.array(mjx_data.qpos).tolist(),
+                    "qvel": np.array(mjx_data.qvel).tolist(),
+                    "control": np.array(us).tolist(),
+                    "running_cost": jnp.sum(rollouts.costs, axis=1).tolist(),
+                    "state_cost": float(rollouts.costs[0, 0]),
+                    "success": task_success,
+                })
 
 
-            if np.isnan(u).any():
+            if np.isnan(us).any():
                 print("Control action is NaN, stopping simulation.")
                 break
             

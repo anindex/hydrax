@@ -13,14 +13,12 @@ class CubeRotation(Task):
     """Cube rotation with the LEAP hand."""
 
     def __init__(
-        self, planning_horizon: int = 3, sim_steps_per_control_step: int = 4
+        self,
     ):
         mj_model = mujoco.MjModel.from_xml_path( (get_root_path() / "hydrax" / "models" /  "cube" / "scene.xml").as_posix())
 
         super().__init__(
             mj_model,
-            planning_horizon=planning_horizon,
-            sim_steps_per_control_step=sim_steps_per_control_step,
             trace_sites=["cube_center", "if_tip", "mf_tip", "rf_tip", "th_tip"],
         )
 
